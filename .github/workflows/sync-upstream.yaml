@@ -1,0 +1,198 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  sync:
+    name: Sync with Upstream Repository
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/SpaceTimee/Cealing-Host.git || true
+          git remote -v
+
+      - name: Fetch Upstream Changes
+        run: |
+          git fetch upstream
+
+      - name: Check for New Commits
+        id: check_commits
+        run: |
+          # Get the latest commit from upstream/main
+          UPSTREAM_COMMIT=$(git rev-parse upstream/main)
+          # Get the latest commit from current branch
+          LOCAL_COMMIT=$(git rev-parse HEAD)
+          
+          echo "Upstream commit: $UPSTREAM_COMMIT"
+          echo "Local commit: $LOCAL_COMMIT"
+          
+          # Check if upstream has commits that we don't have
+          if ! git merge-base --is-ancestor $UPSTREAM_COMMIT HEAD; then
+            echo "New commits found in upstream"
+            echo "has_new_commits=true" >> $GITHUB_OUTPUT
+            
+            # Get commit count difference
+            MERGE_BASE=$(git merge-base HEAD upstream/main)
+            COMMIT_COUNT=$(git rev-list --count $MERGE_BASE..upstream/main)
+            echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+            
+            # Get latest commit message from upstream
+            LATEST_MESSAGE=$(git log -1 --pretty=format:"%s" upstream/main)
+            echo "latest_message=$LATEST_MESSAGE" >> $GITHUB_OUTPUT
+          else
+            echo "No new commits in upstream"
+            echo "has_new_commits=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync Changes
+        if: steps.check_commits.outputs.has_new_commits == 'true'
+        run: |
+          # Determine the target branch - try to find main or master branch
+          DEFAULT_BRANCH=""
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            DEFAULT_BRANCH="main"
+          elif git show-ref --verify --quiet refs/remotes/origin/master; then
+            DEFAULT_BRANCH="master"
+          else
+            # If neither main nor master exists, create main as default
+            DEFAULT_BRANCH="main"
+          fi
+          
+          echo "Target branch: $DEFAULT_BRANCH"
+          
+          # Check if default branch exists locally, if not create it
+          if ! git show-ref --verify --quiet refs/heads/$DEFAULT_BRANCH; then
+            if git show-ref --verify --quiet refs/remotes/origin/$DEFAULT_BRANCH; then
+              echo "Creating local $DEFAULT_BRANCH branch from origin/$DEFAULT_BRANCH"
+              git checkout -b $DEFAULT_BRANCH origin/$DEFAULT_BRANCH
+            else
+              echo "Creating new $DEFAULT_BRANCH branch from current branch"
+              git checkout -b $DEFAULT_BRANCH
+            fi
+          else
+            # Switch to default branch
+            git checkout $DEFAULT_BRANCH
+          fi
+          
+          # Try to merge upstream changes
+          if git merge upstream/main --no-edit; then
+            echo "Successfully merged upstream changes"
+            echo "MERGE_SUCCESS=true" >> $GITHUB_ENV
+            echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+          else
+            echo "Merge conflict detected"
+            git merge --abort
+            echo "MERGE_SUCCESS=false" >> $GITHUB_ENV
+            echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
+          fi
+
+      - name: Push Changes
+        if: steps.check_commits.outputs.has_new_commits == 'true' && env.MERGE_SUCCESS == 'true'
+        run: |
+          git push origin $DEFAULT_BRANCH
+
+      - name: Create Issue on Merge Conflict
+        if: steps.check_commits.outputs.has_new_commits == 'true' && env.MERGE_SUCCESS == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🔄 Upstream Sync Conflict Detected';
+            const body = `
+            ## Upstream Sync Conflict
+            
+            The automatic sync with upstream repository failed due to merge conflicts.
+            
+            **Details:**
+            - Upstream repository: \`SpaceTimee/Cealing-Host\`
+            - Number of new commits: ${{ steps.check_commits.outputs.commit_count }}
+            - Latest upstream commit: ${{ steps.check_commits.outputs.latest_message }}
+            
+            **Action Required:**
+            Manual intervention is needed to resolve the conflicts. Please:
+            
+            1. Clone the repository locally
+            2. Add upstream remote: \`git remote add upstream https://github.com/SpaceTimee/Cealing-Host.git\`
+            3. Fetch upstream: \`git fetch upstream\`
+            4. Merge and resolve conflicts: \`git merge upstream/main\`
+            5. Resolve any conflicts manually
+            6. Commit and push the changes
+            
+            This issue will be automatically closed when the next successful sync occurs.
+            `;
+            
+            // Check if there's already an open issue for this
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['upstream-sync-conflict']
+            });
+            
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['upstream-sync-conflict', 'help wanted']
+              });
+            }
+
+      - name: Close Conflict Issues on Success
+        if: steps.check_commits.outputs.has_new_commits == 'true' && env.MERGE_SUCCESS == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Close any open upstream sync conflict issues
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['upstream-sync-conflict']
+            });
+            
+            for (const issue of issues.data) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '✅ Upstream sync conflict has been resolved automatically.'
+              });
+            }
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.check_commits.outputs.has_new_commits }}" == "true" ]; then
+            if [ "$MERGE_SUCCESS" == "true" ]; then
+              echo "✅ Successfully synced ${{ steps.check_commits.outputs.commit_count }} commit(s) from upstream"
+            else
+              echo "❌ Sync failed due to merge conflicts - manual intervention required"
+            fi
+          else
+            echo "✅ Repository is already up to date with upstream"
+          fi

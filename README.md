@@ -7,6 +7,13 @@
 
 * 部分使用该规则的项目: [Sheas Cealer](https://github.com/SpaceTimee/Sheas-Cealer), [Sheas Cealer Droid](https://github.com/SpaceTimee/Sheas-Cealer-Droid)
 
+## 自动同步
+本存储库已配置自动与上游仓库 [SpaceTimee/Cealing-Host](https://github.com/SpaceTimee/Cealing-Host) 同步，确保规则文件始终保持最新状态。
+
+* **同步频率**: 每日自动检查更新
+* **手动触发**: 可在 Actions 页面手动触发同步
+* **冲突处理**: 如遇合并冲突，将自动创建 Issue 提醒手动处理
+
 ## 词汇解释
 **[Sheas Cealer Dictionary](https://github.com/SpaceTimee/Sheas-Cealer/wiki/Sheas-Cealer-Dictionary)** or **[Cealer Dict](https://github.com/SpaceTimee/Sheas-Cealer-Droid/wiki/Cealer-Dict)**
 
