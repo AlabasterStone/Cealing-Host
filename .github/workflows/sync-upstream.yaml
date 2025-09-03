@@ -93,13 +93,13 @@ jobs:
           fi
           
           # Try to merge upstream changes
-          if git merge upstream/main --no-edit; then
+          if git merge upstream/main --no-edit --allow-unrelated-histories; then
             echo "Successfully merged upstream changes"
             echo "MERGE_SUCCESS=true" >> $GITHUB_ENV
             echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
           else
             echo "Merge conflict detected"
-            git merge --abort
+            git merge --abort 2>/dev/null || true
             echo "MERGE_SUCCESS=false" >> $GITHUB_ENV
             echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> $GITHUB_ENV
           fi
@@ -131,9 +131,18 @@ jobs:
             1. Clone the repository locally
             2. Add upstream remote: \`git remote add upstream https://github.com/SpaceTimee/Cealing-Host.git\`
             3. Fetch upstream: \`git fetch upstream\`
-            4. Merge and resolve conflicts: \`git merge upstream/main\`
-            5. Resolve any conflicts manually
-            6. Commit and push the changes
+            4. Create or switch to main branch: \`git checkout -b main\` (if it doesn't exist)
+            5. Merge with unrelated histories flag: \`git merge upstream/main --allow-unrelated-histories\`
+            6. Resolve any conflicts manually in the affected files
+            7. Commit the merge: \`git commit\`
+            8. Push the changes: \`git push origin main\`
+            
+            **Note:** This repository may have unrelated histories compared to upstream. Use the \`--allow-unrelated-histories\` flag when merging.
+            
+            **Common Conflicts:**
+            - \`Cealing-Host.json\` - Main rules file differences
+            - \`README.md\` - Documentation differences  
+            - Other configuration files
             
             This issue will be automatically closed when the next successful sync occurs.
             `;

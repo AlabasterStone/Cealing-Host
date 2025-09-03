@@ -14,6 +14,8 @@
 * **手动触发**: 可在 Actions 页面手动触发同步
 * **冲突处理**: 如遇合并冲突，将自动创建 Issue 提醒手动处理
 
+详细说明请参考: [同步文档](SYNC.md)
+
 ## 词汇解释
 **[Sheas Cealer Dictionary](https://github.com/SpaceTimee/Sheas-Cealer/wiki/Sheas-Cealer-Dictionary)** or **[Cealer Dict](https://github.com/SpaceTimee/Sheas-Cealer-Droid/wiki/Cealer-Dict)**
 
