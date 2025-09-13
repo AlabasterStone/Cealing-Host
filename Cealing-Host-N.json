@@ -1,5 +1,6 @@
 [
-    [["*protonvpn.com"],"","185.159.159.140"],
+    [["protonvpn.com"],"","185.159.159.140"],
+    [["account.protonvpn.com"],"","185.159.159.143"],
     [["cdn.jsdelivr.net"],"","104.16.89.20"],
     [["images.prismic.io"],"imgix.net","151.101.78.208"],
     [["api.fanbox.cc"],"api.fanbox.cc","172.64.146.116"],
